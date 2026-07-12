@@ -36,50 +36,62 @@ export default function Home() {
   const [pending, setPending] = useState<SampledColor | null>(null);
   const [garments, setGarments] = useState<Garment[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Capo a cui assegnare il colore in attesa: id di un capo o "new"
+  const [pendingTarget, setPendingTarget] = useState<string>("new");
   // Rifiuti consecutivi nella sessione di campionamento corrente:
   // si azzera quando un colore viene accettato.
   const [rejections, setRejections] = useState(0);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const handleSample = useCallback((rgb: RGB) => {
-    setAiError(null);
-    setPending(buildSample(rgb));
-  }, []);
+  const handleSample = useCallback(
+    (rgb: RGB) => {
+      setAiError(null);
+      setPending(buildSample(rgb));
+      setPendingTarget(activeId ?? "new");
+    },
+    [activeId]
+  );
 
-  const handleAiCapture = useCallback(async (dataUrl: string) => {
-    setAiLoading(true);
-    setAiError(null);
-    try {
-      const res = await fetch("/api/vision", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Errore analisi AI");
-      setPending(buildSample(hexToRgb(data.hex), true));
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : "Errore analisi AI");
-    } finally {
-      setAiLoading(false);
-    }
-  }, []);
+  const handleAiCapture = useCallback(
+    async (dataUrl: string) => {
+      setAiLoading(true);
+      setAiError(null);
+      try {
+        const res = await fetch("/api/vision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: dataUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Errore analisi AI");
+        setPending(buildSample(hexToRgb(data.hex), true));
+        setPendingTarget(activeId ?? "new");
+      } catch (err) {
+        setAiError(err instanceof Error ? err.message : "Errore analisi AI");
+      } finally {
+        setAiLoading(false);
+      }
+    },
+    [activeId]
+  );
 
   const acceptPending = () => {
     if (!pending) return;
-    setGarments((prev) => {
-      // Se non c'è nessun capo, ne creiamo uno al volo.
-      if (prev.length === 0) {
-        const g = { ...newGarment(), colors: [pending] };
-        setActiveId(g.id);
-        return [g];
-      }
-      const targetId = activeId ?? prev[prev.length - 1].id;
-      return prev.map((g) =>
-        g.id === targetId ? { ...g, colors: [...g.colors, pending] } : g
+    const targetExists = garments.some((g) => g.id === pendingTarget);
+    if (!targetExists) {
+      // "Nuovo capo" (o capo eliminato nel frattempo): ne creiamo uno.
+      const g = { ...newGarment(), colors: [pending] };
+      setGarments((prev) => [...prev, g]);
+      setActiveId(g.id);
+    } else {
+      setGarments((prev) =>
+        prev.map((g) =>
+          g.id === pendingTarget ? { ...g, colors: [...g.colors, pending] } : g
+        )
       );
-    });
+      setActiveId(pendingTarget);
+    }
     setPending(null);
     setRejections(0);
   };
@@ -135,6 +147,20 @@ export default function Home() {
       {pending && (
         <div className="pending-bar" role="dialog" aria-label="Conferma colore campionato">
           <PantoneChip color={pending} size="lg" onRemove={rejectPending} />
+          <label className="pending-target">
+            <span className="field-label">Assegna al capo</span>
+            <select
+              value={garments.some((g) => g.id === pendingTarget) ? pendingTarget : "new"}
+              onChange={(e) => setPendingTarget(e.target.value)}
+            >
+              {garments.map((g, i) => (
+                <option key={g.id} value={g.id}>
+                  {i + 1}. {g.type} — {g.pattern}
+                </option>
+              ))}
+              <option value="new">Nuovo capo</option>
+            </select>
+          </label>
           <div className="pending-actions">
             <button type="button" className="btn btn-accept" onClick={acceptPending}>
               Conferma colore

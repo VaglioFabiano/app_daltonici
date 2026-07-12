@@ -11,6 +11,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  // Estende lo sfondo dietro notch e barra home di iPhone
+  viewportFit: "cover",
+  themeColor: "#101418",
 };
 
 export default function RootLayout({

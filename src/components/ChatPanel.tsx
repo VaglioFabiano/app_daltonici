@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { ChatMessage, Garment } from "@/lib/types";
+import Markdown from "./Markdown";
 
 interface ChatPanelProps {
   garments: Garment[];
@@ -77,7 +78,7 @@ export default function ChatPanel({ garments }: ChatPanelProps) {
         )}
         {messages.map((m, i) => (
           <div key={i} className={`chat-bubble chat-${m.role}`}>
-            {m.content}
+            {m.role === "assistant" ? <Markdown text={m.content} /> : m.content}
           </div>
         ))}
         {loading && <div className="chat-bubble chat-assistant chat-typing">Sto pensando…</div>}
